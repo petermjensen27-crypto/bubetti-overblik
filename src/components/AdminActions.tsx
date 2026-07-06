@@ -30,6 +30,7 @@ export function AdminActions() {
 
   function okMessage(label: string, data: Record<string, unknown>): string {
     if (label === "backfill") return `Backfill færdig: ${data.ok} hentet, ${data.failed} fejlede`;
+    if (label === "current") return "Denne måned er opdateret";
     return "Kørsel færdig";
   }
 
@@ -40,6 +41,9 @@ export function AdminActions() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <button onClick={() => post({ action: "current" }, "current")} disabled={busy !== null} className="btn-outline disabled:opacity-50">
+        {busy === "current" ? "Opdaterer…" : "Opdatér nu"}
+      </button>
       <button onClick={() => post({ action: "due" }, "due")} disabled={busy !== null} className="btn-outline disabled:opacity-50">
         {busy === "due" ? "Henter…" : "Kør dagens pull"}
       </button>

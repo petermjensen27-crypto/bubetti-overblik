@@ -1,5 +1,6 @@
 import { getRevenueSource, getSpendSources } from "./integrations";
 import {
+  currentMonth,
   daysInMonth,
   dueSnapshot,
   periodBounds,
@@ -74,6 +75,21 @@ export async function runScheduled(now: Date = new Date()): Promise<PeriodKey | 
   if (!due) return null;
   await ingestOne(due, "scheduled");
   return due;
+}
+
+/**
+ * On-demand refresh of the current month: re-pulls both the half and full
+ * snapshots (the full snapshot reflects month-to-date). Independent of the
+ * scheduled 1st/16th cadence.
+ */
+export async function ingestCurrent(now: Date = new Date()): Promise<PeriodKey[]> {
+  const { year, month } = currentMonth(now);
+  const keys: PeriodKey[] = [
+    { year, month, split: "half" },
+    { year, month, split: "full" },
+  ];
+  for (const key of keys) await ingestOne(key, "manual");
+  return keys;
 }
 
 /** Every (year, month, split) from a start period up to and including an end period. */

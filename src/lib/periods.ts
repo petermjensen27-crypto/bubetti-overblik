@@ -67,6 +67,12 @@ function previousMonth(year: number, month: number): { year: number; month: numb
   return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 }
 
+/** The current calendar month, evaluated in the business timezone. */
+export function currentMonth(now: Date = new Date()): { year: number; month: number } {
+  const local = toZonedTime(now, TIMEZONE);
+  return { year: local.getFullYear(), month: local.getMonth() + 1 };
+}
+
 /**
  * Given a moment in time, returns the snapshot that is "due" that day, or null.
  *

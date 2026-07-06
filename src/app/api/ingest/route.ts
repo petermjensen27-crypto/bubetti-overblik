@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { backfill, ingestOne, runScheduled } from "@/lib/ingest";
+import { backfill, ingestCurrent, ingestOne, runScheduled } from "@/lib/ingest";
 import { computeMetrics } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ const periodSchema = z.object(periodShape);
 const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("one"), ...periodShape }),
   z.object({ action: z.literal("due") }),
+  z.object({ action: z.literal("current") }),
   z.object({
     action: z.literal("backfill"),
     from: periodSchema,
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
     if (body.action === "due") {
       const ran = await runScheduled();
       return NextResponse.json({ ran });
+    }
+    if (body.action === "current") {
+      const keys = await ingestCurrent();
+      return NextResponse.json({ ok: true, refreshed: keys.length });
     }
     const result = await backfill(body.from, body.to);
     return NextResponse.json(result);
