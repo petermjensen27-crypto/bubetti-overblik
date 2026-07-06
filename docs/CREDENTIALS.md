@@ -110,6 +110,28 @@ META_AD_ACCOUNT_ID=act_1234567890
 
 ---
 
+## 4. e-conomic  →  ledger balances (Saldobalance tab)
+
+e-conomic's REST API authenticates with **two** tokens: your app's secret token
+and a grant token for the Bubetti agreement.
+
+1. **Become a developer / create an app:** sign in at
+   [secure.e-conomic.com](https://secure.e-conomic.com) → your agreement →
+   **Udvidelser / Developers**, or the developer portal, and create an app.
+   Copy its **App Secret Token** and **App Public Token**.
+2. **Grant the app access to the agreement:** open
+   `https://secure.e-conomic.com/secure/api1/requestaccess.aspx?appPublicToken=YOUR_APP_PUBLIC_TOKEN`
+   while logged into the Bubetti agreement → approve. It returns an
+   **Agreement Grant Token**.
+3. Set:
+   ```
+   ECONOMIC_APP_SECRET_TOKEN=...
+   ECONOMIC_AGREEMENT_GRANT_TOKEN=...
+   ```
+
+Only read access is needed (the app reads the chart of accounts). Until these
+are set, the Saldobalance tab shows a "not connected" message.
+
 ## After adding credentials
 
 1. Restart dev (`npm run dev`) or redeploy on Vercel so env vars load.

@@ -19,6 +19,7 @@ import { MoMLineChart, YoyBarChart } from "./Charts";
 import { NoteCell } from "./NoteCell";
 import { AdminActions } from "./AdminActions";
 import { BudgetOverview } from "./BudgetOverview";
+import { LedgerView } from "./LedgerView";
 
 interface SourceStatus {
   shopify: boolean;
@@ -125,7 +126,7 @@ export function Dashboard({
 
   const [month, setMonth] = useState<number>(months.includes(curMonth) ? curMonth : months[months.length - 1] ?? curMonth);
   const [metric, setMetric] = useState<MetricKey>("revenueInclVat");
-  const [view, setView] = useState<"months" | "budget">("months");
+  const [view, setView] = useState<"months" | "budget" | "ledger">("months");
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [forecastLoading, setForecastLoading] = useState(true);
 
@@ -207,9 +208,11 @@ export function Dashboard({
           <div className="metricbar" style={{ marginTop: 0, marginBottom: 8 }}>
             <button className="chip" aria-pressed={view === "months"} onClick={() => setView("months")}>Måneder</button>
             <button className="chip" aria-pressed={view === "budget"} onClick={() => setView("budget")}>Budget (år)</button>
+            <button className="chip" aria-pressed={view === "ledger"} onClick={() => setView("ledger")}>Saldobalance</button>
           </div>
 
           {view === "budget" && <BudgetOverview rows={rows} budget={budget} forecast={forecast} />}
+          {view === "ledger" && <LedgerView />}
 
           {view === "months" && (
           <>
