@@ -18,6 +18,7 @@ import type { Forecast } from "@/lib/forecast";
 import { MoMLineChart, YoyBarChart } from "./Charts";
 import { NoteCell } from "./NoteCell";
 import { AdminActions } from "./AdminActions";
+import { BudgetOverview } from "./BudgetOverview";
 
 interface SourceStatus {
   shopify: boolean;
@@ -124,6 +125,7 @@ export function Dashboard({
 
   const [month, setMonth] = useState<number>(months.includes(curMonth) ? curMonth : months[months.length - 1] ?? curMonth);
   const [metric, setMetric] = useState<MetricKey>("revenueInclVat");
+  const [view, setView] = useState<"months" | "budget">("months");
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [forecastLoading, setForecastLoading] = useState(true);
 
@@ -202,6 +204,15 @@ export function Dashboard({
         </div>
       ) : (
         <>
+          <div className="metricbar" style={{ marginTop: 0, marginBottom: 8 }}>
+            <button className="chip" aria-pressed={view === "months"} onClick={() => setView("months")}>Måneder</button>
+            <button className="chip" aria-pressed={view === "budget"} onClick={() => setView("budget")}>Budget (år)</button>
+          </div>
+
+          {view === "budget" && <BudgetOverview rows={rows} budget={budget} forecast={forecast} />}
+
+          {view === "months" && (
+          <>
           {/* Month tabs */}
           <nav className="tabs" role="tablist" aria-label="Måned">
             {months.map((m) => (
@@ -251,7 +262,10 @@ export function Dashboard({
                         <div className="budget-head"><h3>Budget · prognose <small>{monthName(month)} {budgetYear}</small></h3><span className={`status ${on ? "on" : "off"}`}>{on ? "Prognose over budget" : "Prognose under budget"}</span></div>
                         <RangeRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} budget={budOms} basis="inkl. moms" />
                         <RangeRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} budget={bt.dbExVat} basis="ekskl. moms" />
-                        <div className="fcast-note">📈 <b>Prognose · dag {forecast.throughDay} af {forecast.daysInMonth}:</b> {formatMoney(forecast.mtdNet * VAT)} omsat hidtil. Resten af måneden er fremskrevet ud fra tidligere års {monthName(month).toLowerCase()} × jeres seneste vækst (+{Math.round(forecast.growth * 100)} % ÅoÅ). Midterskøn <b>{formatMoney(omsMid)}</b> · interval {formatMoney(omsLo)}–{formatMoney(omsHi)} · ~{Math.round((omsMid / budOms) * 100)} % af budget. Tidligt på måneden — intervallet indsnævres når flere dage kommer ind.</div>
+                        {forecast.contributionMargin && (
+                          <RangeRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
+                        )}
+                        <div className="fcast-note">📈 <b>Prognose · dag {forecast.throughDay} af {forecast.daysInMonth}:</b> {formatMoney(forecast.mtdNet * VAT)} omsat hidtil. Resten af måneden er fremskrevet ud fra tidligere års {monthName(month).toLowerCase()} × jeres seneste vækst (+{Math.round(forecast.growth * 100)} % ÅoÅ). Midterskøn <b>{formatMoney(omsMid)}</b> · interval {formatMoney(omsLo)}–{formatMoney(omsHi)} · ~{Math.round((omsMid / budOms) * 100)} % af budget. Contribution = DB − annoncespend (Google+Meta); budget-CM trækker hele marketingbudgettet fra.</div>
                       </>
                     );
                   })()
@@ -267,6 +281,8 @@ export function Dashboard({
                       <div className="budget-head"><h3>Budget · faktisk <small>{monthName(month)} {budgetYear}</small></h3><span className={`status ${on ? "on" : "off"}`}>{on ? "På / over budget" : "Under budget"}</span></div>
                       <SolidRow label="Omsætning" actual={budgetRow.metrics.revenueInclVat} budget={budOms} basis="inkl. moms" />
                       <SolidRow label="DB" actual={budgetRow.metrics.db} budget={bt.dbExVat} basis="ekskl. moms" />
+                      <SolidRow label="Contribution" actual={budgetRow.metrics.contributionMargin} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
+                      <p className="vatlegend" style={{ marginTop: 8 }}>Contribution = DB − annoncespend (Google+Meta); budget-CM trækker hele marketingbudgettet fra.</p>
                     </>
                   );
                 })()
@@ -334,6 +350,9 @@ export function Dashboard({
               </table>
             </div>
           </div>
+
+          </>
+          )}
 
           {!allLive && (
             <p className="vatlegend">Viser mock-data for {missing.join(", ")} — tilføj API-nøgler for rigtige tal.</p>

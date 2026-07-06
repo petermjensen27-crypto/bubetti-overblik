@@ -49,6 +49,26 @@ export function YoyBarChart({ data, format }: { data: YoyDatum[]; format: ValueF
   );
 }
 
+export function BudgetVsActualChart({
+  data,
+}: {
+  data: Array<{ month: string; budget: number; actual: number | null }>;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+        <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+        <YAxis tickFormatter={(v) => formatValue(Number(v), "money")} tick={{ fontSize: 11 }} stroke="#94a3b8" width={72} />
+        <Tooltip formatter={(v) => (v == null ? "–" : formatValue(Number(v), "money"))} />
+        <Legend />
+        <Bar dataKey="budget" name="Budget" fill="#d5cfc3" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="actual" name="Faktisk / prognose" fill="#9a5a34" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 interface MoMDatum {
   month: string;
   [year: string]: string | number;

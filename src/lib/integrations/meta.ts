@@ -45,3 +45,32 @@ export const metaSource: SpendSource = {
     return Math.round(spend * 100) / 100;
   },
 };
+
+interface DailyInsightsResponse {
+  data?: Array<{ spend?: string; date_start?: string }>;
+  error?: { message: string };
+}
+
+/** Meta daily spend over an inclusive range, keyed by day-of-month. */
+export async function metaDailySpend(start: string, end: string): Promise<Record<number, number>> {
+  if (!metaConfigured()) return {};
+  const account = process.env.META_AD_ACCOUNT_ID!;
+  const params = new URLSearchParams({
+    access_token: process.env.META_ACCESS_TOKEN!,
+    time_range: JSON.stringify({ since: start, until: end }),
+    fields: "spend",
+    level: "account",
+    time_increment: "1",
+    limit: "100",
+  });
+  const res = await fetch(`https://graph.facebook.com/${API_VERSION}/${account}/insights?${params}`);
+  const json = (await res.json()) as DailyInsightsResponse;
+  if (json.error) throw new Error(`Meta API error: ${json.error.message}`);
+  const byDay: Record<number, number> = {};
+  for (const row of json.data ?? []) {
+    if (!row.date_start) continue;
+    const day = Number(row.date_start.slice(8, 10));
+    byDay[day] = (byDay[day] ?? 0) + Number(row.spend ?? 0);
+  }
+  return byDay;
+}

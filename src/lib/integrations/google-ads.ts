@@ -87,3 +87,42 @@ export const googleAdsSource: SpendSource = {
     return Math.round((micros / 1_000_000) * 100) / 100;
   },
 };
+
+interface DatedChunk {
+  results?: Array<{ metrics?: { costMicros?: string }; segments?: { date?: string } }>;
+}
+
+/** Google Ads daily spend (DKK) over an inclusive range, keyed by day-of-month. */
+export async function googleDailySpend(start: string, end: string): Promise<Record<number, number>> {
+  if (!googleAdsConfigured()) return {};
+  const customerId = process.env.GOOGLE_ADS_CUSTOMER_ID!;
+  const accessToken = await getAccessToken();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "developer-token": process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
+    "Content-Type": "application/json",
+  };
+  if (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
+    headers["login-customer-id"] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+  }
+  const gaql = `
+    SELECT metrics.cost_micros, segments.date
+    FROM customer
+    WHERE segments.date BETWEEN '${start}' AND '${end}'`;
+  const res = await fetch(
+    `https://googleads.googleapis.com/${API_VERSION}/customers/${customerId}/googleAds:searchStream`,
+    { method: "POST", headers, body: JSON.stringify({ query: gaql }) },
+  );
+  if (!res.ok) throw new Error(`Google Ads API ${res.status}: ${await res.text()}`);
+  const chunks = (await res.json()) as DatedChunk[];
+  const byDay: Record<number, number> = {};
+  for (const chunk of chunks) {
+    for (const row of chunk.results ?? []) {
+      const date = row.segments?.date;
+      if (!date) continue;
+      const day = Number(date.slice(8, 10));
+      byDay[day] = (byDay[day] ?? 0) + Number(row.metrics?.costMicros ?? 0) / 1_000_000;
+    }
+  }
+  return byDay;
+}
