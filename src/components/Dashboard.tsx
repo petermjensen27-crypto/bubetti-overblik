@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { daysInMonth, monthName, type Split } from "@/lib/periods";
 import { formatMoney, formatPercent, formatRatio } from "@/lib/money";
 import {
@@ -130,13 +130,19 @@ export function Dashboard({
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [forecastLoading, setForecastLoading] = useState(true);
 
-  useEffect(() => {
-    fetch("/api/forecast")
+  const loadForecast = useCallback(() => {
+    // Initial load shows the "beregner" state (forecastLoading starts true); a
+    // manual refresh keeps the current forecast visible until the new one lands.
+    fetch("/api/forecast", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setForecast(d.forecast ?? null))
       .catch(() => setForecast(null))
       .finally(() => setForecastLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadForecast();
+  }, [loadForecast]);
 
   const monthRows = useMemo(
     () => rows.filter((r) => r.month === month).sort((a, b) => a.year - b.year || (a.split === "half" ? -1 : 1)),
@@ -201,7 +207,7 @@ export function Dashboard({
         <div className="rounded-2xl border border-dashed border-[var(--hair-strong)] bg-white p-10 text-center">
           <h2 className="text-lg font-semibold">Ingen data endnu</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">Kør et pull eller en backfill for at hente data.</p>
-          <div className="mt-4 flex justify-center"><AdminActions /></div>
+          <div className="mt-4 flex justify-center"><AdminActions onDone={loadForecast} /></div>
         </div>
       ) : (
         <>
@@ -363,7 +369,7 @@ export function Dashboard({
 
           <div className="panel">
             <h3 style={{ marginBottom: 12 }}>Data-hentning</h3>
-            <AdminActions />
+            <AdminActions onDone={loadForecast} />
           </div>
         </>
       )}

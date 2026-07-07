@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 /** Manual data controls: pull today's due snapshot, or backfill a range. */
-export function AdminActions() {
+export function AdminActions({ onDone }: { onDone?: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -20,7 +20,10 @@ export function AdminActions() {
       });
       const data = await res.json();
       setMessage(res.ok ? okMessage(label, data) : `Fejl: ${data.error ?? res.status}`);
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        router.refresh();
+        onDone?.();
+      }
     } catch (err) {
       setMessage(`Fejl: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
