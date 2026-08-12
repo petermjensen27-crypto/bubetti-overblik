@@ -53,22 +53,32 @@ function sumRange(byDay: Record<number, number>, from: number, to: number): numb
 
 /**
  * Smoothed YoY growth = recency-weighted mean of the last 3 completed months'
- * year-over-year ratios; range = min/max of those ratios.
+ * year-over-year ratios; range = min/max of those ratios. All months fetched
+ * concurrently.
  */
 async function smoothedGrowth(
   year: number,
   month: number,
   totalFn: TotalFn,
 ): Promise<{ mid: number; lo: number; hi: number }> {
-  const ratios: number[] = [];
+  const targets: Array<{ y: number; m: number }> = [];
   let cur = prevMonth(year, month);
   for (let i = 0; i < 3; i++) {
-    const now = await totalFn(iso(cur.y, cur.m, 1), iso(cur.y, cur.m, daysInMonth(cur.y, cur.m)));
-    const py = cur.y - 1;
-    const prev = await totalFn(iso(py, cur.m, 1), iso(py, cur.m, daysInMonth(py, cur.m)));
-    if (prev > 0 && now > 0) ratios.push(now / prev);
+    targets.push(cur);
     cur = prevMonth(cur.y, cur.m);
   }
+  const ratios = (
+    await Promise.all(
+      targets.map(async (t) => {
+        const [now, prev] = await Promise.all([
+          totalFn(iso(t.y, t.m, 1), iso(t.y, t.m, daysInMonth(t.y, t.m))),
+          totalFn(iso(t.y - 1, t.m, 1), iso(t.y - 1, t.m, daysInMonth(t.y - 1, t.m))),
+        ]);
+        return prev > 0 && now > 0 ? now / prev : null;
+      }),
+    )
+  ).filter((r): r is number => r != null);
+
   if (ratios.length === 0) return { mid: 1, lo: 1, hi: 1 };
   const weights = ratios.map((_, i) => ratios.length - i); // most recent heaviest
   const totW = weights.reduce((a, b) => a + b, 0);
@@ -76,34 +86,44 @@ async function smoothedGrowth(
   return { mid, lo: Math.min(...ratios), hi: Math.max(...ratios) };
 }
 
-/** actual month-to-date + prior-years' remaining-day total × smoothed YoY growth. */
+/**
+ * actual month-to-date + prior-years' remaining-day total × smoothed YoY growth.
+ * The MTD pull, prior-year pulls, and growth calc all run concurrently.
+ */
 async function project(
   year: number,
   month: number,
   throughDay: number,
   dailyFn: DailyFn,
   totalFn: TotalFn,
-): Promise<MetricForecast & { mtd: number }> {
-  const mtd = sumRange(await dailyFn(iso(year, month, 1), iso(year, month, throughDay)), 1, throughDay);
+): Promise<MetricForecast & { mtd: number; growthMid: number }> {
+  const [mtdByDay, priors, g] = await Promise.all([
+    dailyFn(iso(year, month, 1), iso(year, month, throughDay)),
+    Promise.all(
+      [year - 2, year - 1].map(async (py) => {
+        const pyDays = daysInMonth(py, month);
+        const bd = await dailyFn(iso(py, month, 1), iso(py, month, pyDays));
+        return { pyDays, bd };
+      }),
+    ),
+    smoothedGrowth(year, month, totalFn),
+  ]);
 
-  const rem: number[] = [];
-  for (const py of [year - 2, year - 1]) {
-    const pyDays = daysInMonth(py, month);
-    const byDay = await dailyFn(iso(py, month, 1), iso(py, month, pyDays));
-    if (sumRange(byDay, 1, pyDays) <= 0) continue;
-    rem.push(sumRange(byDay, throughDay + 1, pyDays));
-  }
+  const mtd = sumRange(mtdByDay, 1, throughDay);
+  const rem = priors
+    .filter((p) => sumRange(p.bd, 1, p.pyDays) > 0)
+    .map((p) => sumRange(p.bd, throughDay + 1, p.pyDays));
   const priorRemaining =
     rem.length === 0
       ? 0
       : rem.reduce((s, v, i) => s + v * (i + 1), 0) / rem.reduce((s, _, i) => s + (i + 1), 0);
 
-  const g = await smoothedGrowth(year, month, totalFn);
   return {
     mtd,
     mid: mtd + priorRemaining * g.mid,
     lo: mtd + priorRemaining * g.lo,
     hi: mtd + priorRemaining * g.hi,
+    growthMid: g.mid,
   };
 }
 
@@ -139,14 +159,18 @@ export async function robustForecast(now: Date = new Date()): Promise<Forecast |
   const throughDay = Math.min(local.getDate() - 1, days); // last complete day
   if (throughDay < 1) return null;
 
-  const net = await project(year, month, throughDay, shopifyDailyFn("net_sales"), shopifyTotalFn("net_sales"));
-  const gp = await project(year, month, throughDay, shopifyDailyFn("gross_profit"), shopifyTotalFn("gross_profit"));
-  const growth = await smoothedGrowth(year, month, shopifyTotalFn("net_sales"));
+  // net sales, gross profit and spend projections all run concurrently.
+  const [net, gp, s] = await Promise.all([
+    project(year, month, throughDay, shopifyDailyFn("net_sales"), shopifyTotalFn("net_sales")),
+    project(year, month, throughDay, shopifyDailyFn("gross_profit"), shopifyTotalFn("gross_profit")),
+    spendConfigured()
+      ? project(year, month, throughDay, spendDaily, spendTotal)
+      : Promise.resolve(null),
+  ]);
 
   let spend: MetricForecast | undefined;
   let contributionMargin: MetricForecast | undefined;
-  if (spendConfigured()) {
-    const s = await project(year, month, throughDay, spendDaily, spendTotal);
+  if (s) {
     spend = { mid: s.mid, lo: s.lo, hi: s.hi };
     // Best CM pairs high profit with low spend; worst pairs low profit with high spend.
     contributionMargin = { mid: gp.mid - s.mid, lo: gp.lo - s.hi, hi: gp.hi - s.lo };
@@ -157,7 +181,7 @@ export async function robustForecast(now: Date = new Date()): Promise<Forecast |
     month,
     throughDay,
     daysInMonth: days,
-    growth: growth.mid - 1,
+    growth: net.growthMid - 1,
     mtdNet: net.mtd,
     netSales: { mid: net.mid, lo: net.lo, hi: net.hi },
     grossProfit: { mid: gp.mid, lo: gp.lo, hi: gp.hi },
