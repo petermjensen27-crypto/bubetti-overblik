@@ -15,8 +15,8 @@ import type { SpendSource } from "./types";
  *   GOOGLE_ADS_LOGIN_CUSTOMER_ID    optional manager account (digits only)
  */
 
-// Google sunsets API versions ~yearly; override via env when bumping.
-const API_VERSION = process.env.GOOGLE_ADS_API_VERSION || "v21";
+// Google sunsets API versions a few times a year; override via env when bumping.
+const API_VERSION = process.env.GOOGLE_ADS_API_VERSION || "v25";
 
 export function googleAdsConfigured(): boolean {
   return Boolean(
