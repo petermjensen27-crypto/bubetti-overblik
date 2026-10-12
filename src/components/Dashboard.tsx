@@ -109,6 +109,19 @@ function RangeRow({ label, mid, lo, hi, budget, basis }: { label: string; mid: n
   );
 }
 
+function ForecastOnlyRow({ label, mid, lo, hi, basis }: { label: string; mid: number; lo: number; hi: number; basis: string }) {
+  return (
+    <div className="brow">
+      <div className="blabel">{label}<div className="tag" style={{ marginTop: 3 }}>{basis}</div></div>
+      <div />
+      <div className="bvals">
+        <span className="big">{formatMoney(mid)}</span>
+        <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>interval {formatMoney(lo)}–{formatMoney(hi)}</div>
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard({
   rows,
   status,
@@ -118,11 +131,11 @@ export function Dashboard({
   status: SourceStatus;
   budget: Record<string, BudgetTarget>;
 }) {
-  const months = distinctMonths(rows);
-  const years = distinctYears(rows);
   const now = new Date();
   const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
+  const months = [...new Set([...distinctMonths(rows), curMonth])].sort((a, b) => a - b);
+  const years = distinctYears(rows);
 
   const [month, setMonth] = useState<number>(months.includes(curMonth) ? curMonth : months[months.length - 1] ?? curMonth);
   const [metric, setMetric] = useState<MetricKey>("revenueInclVat");
@@ -133,7 +146,7 @@ export function Dashboard({
   const loadForecast = useCallback(() => {
     // Initial load shows the "beregner" state (forecastLoading starts true); a
     // manual refresh keeps the current forecast visible until the new one lands.
-    fetch("/api/forecast", { cache: "no-store" })
+    fetch(`/api/forecast?refresh=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setForecast(d.forecast ?? null))
       .catch(() => setForecast(null))
@@ -142,6 +155,22 @@ export function Dashboard({
 
   useEffect(() => {
     loadForecast();
+    let lastDate = new Date().toDateString();
+    const refreshOnNewDay = () => {
+      const today = new Date().toDateString();
+      if (today === lastDate) return;
+      lastDate = today;
+      loadForecast();
+    };
+    const interval = window.setInterval(refreshOnNewDay, 60_000);
+    window.addEventListener("focus", refreshOnNewDay);
+    document.addEventListener("visibilitychange", refreshOnNewDay);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshOnNewDay);
+      document.removeEventListener("visibilitychange", refreshOnNewDay);
+    };
   }, [loadForecast]);
 
   const monthRows = useMemo(
@@ -194,6 +223,7 @@ export function Dashboard({
 
   // Budget year for the selected month: latest year that has a budget for it.
   const budgetYear = useMemo(() => {
+    if (month === curMonth) return curYear;
     const ys = Object.keys(budget).filter((k) => Number(k.split("-")[1]) === month).map((k) => Number(k.split("-")[0]));
     return ys.length ? Math.max(...ys) : month >= 10 ? curYear - 1 : curYear;
   }, [budget, month, curYear]);
@@ -256,30 +286,42 @@ export function Dashboard({
           )}
 
           {/* Budget & forecast */}
-          {bt && (
+          {(bt || isCurrentMonth) && (
             <section className="budget">
               {isCurrentMonth ? (
                 forecastLoading ? (
-                  <div className="budget-head"><h3>Budget · prognose <small>{monthName(month)} {budgetYear}</small></h3><span className="status pending">Beregner prognose…</span></div>
+                  <div className="budget-head"><h3>Prognose <small>{monthName(month)} {budgetYear}</small></h3><span className="status pending">Beregner prognose…</span></div>
                 ) : forecast && forecast.year === budgetYear && forecast.month === month ? (
                   (() => {
                     const omsMid = forecast.netSales.mid * VAT, omsLo = forecast.netSales.lo * VAT, omsHi = forecast.netSales.hi * VAT;
-                    const budOms = bt.omsExVat * VAT;
-                    const on = omsMid / budOms >= 1;
+                    const budOms = bt ? bt.omsExVat * VAT : null;
+                    const on = budOms !== null && omsMid / budOms >= 1;
                     return (
                       <>
-                        <div className="budget-head"><h3>Budget · prognose <small>{monthName(month)} {budgetYear}</small></h3><span className={`status ${on ? "on" : "off"}`}>{on ? "Prognose over budget" : "Prognose under budget"}</span></div>
-                        <RangeRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} budget={budOms} basis="inkl. moms" />
-                        <RangeRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} budget={bt.dbExVat} basis="ekskl. moms" />
-                        {forecast.contributionMargin && (
-                          <RangeRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
+                        <div className="budget-head"><h3>{bt ? "Budget · prognose" : "Prognose"} <small>{monthName(month)} {budgetYear}</small></h3><span className={`status ${bt ? (on ? "on" : "off") : "pending"}`}>{bt ? (on ? "Prognose over budget" : "Prognose under budget") : "Budget ikke fastsat"}</span></div>
+                        {bt ? (
+                          <>
+                            <RangeRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} budget={bt.omsExVat * VAT} basis="inkl. moms" />
+                            <RangeRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} budget={bt.dbExVat} basis="ekskl. moms" />
+                            {forecast.contributionMargin && (
+                              <RangeRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <ForecastOnlyRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} basis="inkl. moms" />
+                            <ForecastOnlyRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} basis="ekskl. moms" />
+                            {forecast.contributionMargin && (
+                              <ForecastOnlyRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} basis="ekskl. moms" />
+                            )}
+                          </>
                         )}
-                        <div className="fcast-note">📈 <b>Prognose · dag {forecast.throughDay} af {forecast.daysInMonth}:</b> {formatMoney(forecast.mtdNet * VAT)} omsat hidtil. Resten af måneden er fremskrevet ud fra tidligere års {monthName(month).toLowerCase()} × jeres seneste vækst (+{Math.round(forecast.growth * 100)} % ÅoÅ). Midterskøn <b>{formatMoney(omsMid)}</b> · interval {formatMoney(omsLo)}–{formatMoney(omsHi)} · ~{Math.round((omsMid / budOms) * 100)} % af budget. Contribution = DB − annoncespend (Google+Meta); budget-CM trækker hele marketingbudgettet fra.</div>
+                        <div className="fcast-note"><b>Prognose · dag {forecast.throughDay} af {forecast.daysInMonth}:</b> {formatMoney(forecast.mtdNet * VAT)} omsat hidtil. Resten af måneden er fremskrevet ud fra tidligere års {monthName(month).toLowerCase()} × jeres seneste vækst (+{Math.round(forecast.growth * 100)} % ÅoÅ). Midterskøn <b>{formatMoney(omsMid)}</b> · interval {formatMoney(omsLo)}–{formatMoney(omsHi)}{budOms !== null ? ` · ~${Math.round((omsMid / budOms) * 100)} % af budget` : " · intet budget for måneden"}. Contribution = DB − annoncespend (Google+Meta).</div>
                       </>
                     );
                   })()
                 ) : (
-                  <div className="budget-head"><h3>Budget <small>{monthName(month)} {budgetYear}</small></h3><span className="status pending">Prognose ikke tilgængelig</span></div>
+                  <div className="budget-head"><h3>Prognose <small>{monthName(month)} {budgetYear}</small></h3><span className="status pending">Prognose ikke tilgængelig</span></div>
                 )
               ) : budgetRow ? (
                 (() => {
