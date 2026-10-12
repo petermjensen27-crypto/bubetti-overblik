@@ -226,7 +226,7 @@ export function Dashboard({
     if (month === curMonth) return curYear;
     const ys = Object.keys(budget).filter((k) => Number(k.split("-")[1]) === month).map((k) => Number(k.split("-")[0]));
     return ys.length ? Math.max(...ys) : month >= 10 ? curYear - 1 : curYear;
-  }, [budget, month, curYear]);
+  }, [budget, month, curMonth, curYear]);
   const bt = budget[`${budgetYear}-${String(month).padStart(2, "0")}`];
   const isCurrentMonth = budgetYear === curYear && month === curMonth;
   const budgetRow = kpiCur && kpiCur.year === budgetYear ? kpiCur : findRow(rows, budgetYear, month, "full");
@@ -316,7 +316,7 @@ export function Dashboard({
                             )}
                           </>
                         )}
-                        <div className="fcast-note"><b>Prognose · dag {forecast.throughDay} af {forecast.daysInMonth}:</b> {formatMoney(forecast.mtdNet * VAT)} omsat hidtil. Resten af måneden er fremskrevet ud fra tidligere års {monthName(month).toLowerCase()} × jeres seneste vækst (+{Math.round(forecast.growth * 100)} % ÅoÅ). Midterskøn <b>{formatMoney(omsMid)}</b> · interval {formatMoney(omsLo)}–{formatMoney(omsHi)}{budOms !== null ? ` · ~${Math.round((omsMid / budOms) * 100)} % af budget` : " · intet budget for måneden"}. Contribution = DB − annoncespend (Google+Meta).</div>
+                        <div className="fcast-note"><b>Prognose · dag {forecast.throughDay} af {forecast.daysInMonth}:</b> {formatMoney(forecast.mtdNet * VAT)} omsat hidtil. Resten fremskrives primært ud fra månedens faktiske dagstempo; tidligere års {monthName(month).toLowerCase()} og seneste vækst (+{Math.round(forecast.growth * 100)} % ÅoÅ) justerer skønnet. Midterskøn <b>{formatMoney(omsMid)}</b> · interval {formatMoney(omsLo)}–{formatMoney(omsHi)}{budOms !== null ? ` · ~${Math.round((omsMid / budOms) * 100)} % af budget` : " · intet budget for måneden"}. Contribution = DB − annoncespend (Google+Meta).</div>
                       </>
                     );
                   })()

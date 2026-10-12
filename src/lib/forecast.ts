@@ -23,7 +23,7 @@ export interface Forecast {
   /** Last complete day of the month used as the MTD cutoff. */
   throughDay: number;
   daysInMonth: number;
-  /** Smoothed YoY growth applied to the remaining days (fraction, e.g. 0.23). */
+  /** Smoothed YoY growth applied to the historical component of the remainder. */
   growth: number;
   /** Net sales month-to-date, ex-VAT. */
   mtdNet: number;
@@ -41,6 +41,9 @@ type TotalFn = (start: string, end: string) => Promise<number>;
 const iso = (y: number, m: number, d: number) =>
   `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
+const PACE_WEIGHT = 0.7;
+const HISTORY_WEIGHT = 1 - PACE_WEIGHT;
+
 function prevMonth(y: number, m: number): { y: number; m: number } {
   return m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
 }
@@ -49,6 +52,28 @@ function sumRange(byDay: Record<number, number>, from: number, to: number): numb
   let s = 0;
   for (let d = from; d <= to; d++) s += byDay[d] || 0;
   return s;
+}
+
+export function blendForecastProjection(
+  mtd: number,
+  throughDay: number,
+  daysInMonth: number,
+  historicalRemaining: number,
+  growth: { mid: number; lo: number; hi: number },
+): MetricForecast & { mtd: number; growthMid: number } {
+  const daysRemaining = Math.max(daysInMonth - throughDay, 0);
+  const paceRemaining = throughDay > 0 ? (mtd / throughDay) * daysRemaining : 0;
+  const historicalWeight = daysRemaining > 0 ? HISTORY_WEIGHT : 0;
+  const project = (growthFactor: number) =>
+    mtd + paceRemaining * PACE_WEIGHT + historicalRemaining * growthFactor * historicalWeight;
+
+  return {
+    mtd,
+    mid: project(growth.mid),
+    lo: project(growth.lo),
+    hi: project(growth.hi),
+    growthMid: growth.mid,
+  };
 }
 
 /**
@@ -87,7 +112,8 @@ async function smoothedGrowth(
 }
 
 /**
- * actual month-to-date + prior-years' remaining-day total × smoothed YoY growth.
+ * Blend the current MTD run rate (70%) with prior years' remaining-day profile
+ * adjusted by smoothed YoY growth (30%).
  * The MTD pull, prior-year pulls, and growth calc all run concurrently.
  */
 async function project(
@@ -118,13 +144,7 @@ async function project(
       ? 0
       : rem.reduce((s, v, i) => s + v * (i + 1), 0) / rem.reduce((s, _, i) => s + (i + 1), 0);
 
-  return {
-    mtd,
-    mid: mtd + priorRemaining * g.mid,
-    lo: mtd + priorRemaining * g.lo,
-    hi: mtd + priorRemaining * g.hi,
-    growthMid: g.mid,
-  };
+  return blendForecastProjection(mtd, throughDay, daysInMonth(year, month), priorRemaining, g);
 }
 
 const shopifyDailyFn = (metric: SalesMetric): DailyFn => (s, e) => shopifyDaily(metric, s, e);
