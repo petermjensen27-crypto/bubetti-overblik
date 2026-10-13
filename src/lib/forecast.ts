@@ -41,7 +41,11 @@ type TotalFn = (start: string, end: string) => Promise<number>;
 const iso = (y: number, m: number, d: number) =>
   `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-const PACE_WEIGHT = 0.7;
+// Keep the current month run-rate as the primary driver. Recent "hot" months
+// can otherwise inflate the remaining-month forecast by too much, especially in
+// months like October when a few very strong prior months are still influencing
+// the historical remainder.
+const PACE_WEIGHT = 0.8;
 const HISTORY_WEIGHT = 1 - PACE_WEIGHT;
 
 function prevMonth(y: number, m: number): { y: number; m: number } {
@@ -114,8 +118,10 @@ async function smoothedGrowth(
 }
 
 /**
- * Blend the current MTD run rate (70%) with prior years' remaining-day profile
- * adjusted by smoothed YoY growth (30%).
+ * Blend the current MTD run rate (80%) with prior years' remaining-day profile
+ * adjusted by smoothed YoY growth (20%). This keeps the forecast anchored to the
+ * actual month pace while preventing a few unusually strong recent months from
+ * inflating the projection too aggressively.
  * The MTD pull, prior-year pulls, and growth calc all run concurrently.
  */
 async function project(
