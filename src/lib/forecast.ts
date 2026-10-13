@@ -45,8 +45,13 @@ const iso = (y: number, m: number, d: number) =>
 // can otherwise inflate the remaining-month forecast by too much, especially in
 // months like October when a few very strong prior months are still influencing
 // the historical remainder.
-const PACE_WEIGHT = 0.8;
-const HISTORY_WEIGHT = 1 - PACE_WEIGHT;
+const MIN_PACE_WEIGHT = 0.55;
+const MAX_PACE_WEIGHT = 0.85;
+
+function adaptivePaceWeight(throughDay: number, daysInMonthValue: number): number {
+  const ratio = daysInMonthValue > 0 ? throughDay / daysInMonthValue : 0;
+  return Math.min(MAX_PACE_WEIGHT, Math.max(MIN_PACE_WEIGHT, MIN_PACE_WEIGHT + ratio * 0.3));
+}
 
 function prevMonth(y: number, m: number): { y: number; m: number } {
   return m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
@@ -67,9 +72,10 @@ export function blendForecastProjection(
 ): MetricForecast & { mtd: number; growthMid: number } {
   const daysRemaining = Math.max(daysInMonth - throughDay, 0);
   const paceRemaining = throughDay > 0 ? (mtd / throughDay) * daysRemaining : 0;
-  const historicalWeight = daysRemaining > 0 ? HISTORY_WEIGHT : 0;
+  const paceWeight = adaptivePaceWeight(throughDay, daysInMonth);
+  const historicalWeight = daysRemaining > 0 ? 1 - paceWeight : 0;
   const project = (growthFactor: number) =>
-    mtd + paceRemaining * PACE_WEIGHT + historicalRemaining * growthFactor * historicalWeight;
+    mtd + paceRemaining * paceWeight + historicalRemaining * growthFactor * historicalWeight;
   const lowerBound = project(growth.lo);
   const upperBound = project(growth.hi);
 
@@ -94,7 +100,7 @@ async function smoothedGrowth(
 ): Promise<{ mid: number; lo: number; hi: number }> {
   const targets: Array<{ y: number; m: number }> = [];
   let cur = prevMonth(year, month);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 6; i++) {
     targets.push(cur);
     cur = prevMonth(cur.y, cur.m);
   }

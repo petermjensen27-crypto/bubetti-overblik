@@ -18,7 +18,9 @@ export function budgetKey(year: number, month: number): string {
 }
 
 /**
- * Default budget seeded from the FY2026 P&L (Oct 2025 – Sep 2026), ex-VAT.
+ * Default budget seeded from the FY2026 P&L (Oct 2025 – Sep 2026), ex-VAT,
+ * with the remaining months of calendar year 2026 inserted directly as prior
+ * year's monthly value + 10% for revenue and the corresponding cost lines.
  * User edits are stored as overrides and take precedence (see getBudgetMap).
  */
 export const DEFAULT_BUDGET: Record<string, BudgetTarget> = {
@@ -34,6 +36,9 @@ export const DEFAULT_BUDGET: Record<string, BudgetTarget> = {
   "2026-07": { omsExVat: 505390, dbExVat: 264561, marketingExVat: 110737 },
   "2026-08": { omsExVat: 514141, dbExVat: 235899, marketingExVat: 179542 },
   "2026-09": { omsExVat: 585142, dbExVat: 308889, marketingExVat: 69579 },
+  "2026-10": { omsExVat: 842839, dbExVat: 468926, marketingExVat: 82075 },
+  "2026-11": { omsExVat: 849077, dbExVat: 546030, marketingExVat: 133189 },
+  "2026-12": { omsExVat: 867765, dbExVat: 463596, marketingExVat: 158709 },
 };
 
 /** Default budget merged with any stored user overrides (server-only). */

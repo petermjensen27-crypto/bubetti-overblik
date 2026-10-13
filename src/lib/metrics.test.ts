@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_BUDGET } from "./budget";
 import { computeMetrics } from "./metrics";
 
 describe("computeMetrics", () => {
@@ -36,5 +37,23 @@ describe("computeMetrics", () => {
     });
     expect(m.mer).toBe(0);
     expect(m.mpr).toBe(0);
+  });
+
+  it("uses prior year's monthly revenue plus 10% for the remainder of 2026", () => {
+    expect(DEFAULT_BUDGET["2026-10"]).toEqual({
+      omsExVat: 842839,
+      dbExVat: 468926,
+      marketingExVat: 82075,
+    });
+    expect(DEFAULT_BUDGET["2026-11"]).toEqual({
+      omsExVat: 849077,
+      dbExVat: 546030,
+      marketingExVat: 133189,
+    });
+    expect(DEFAULT_BUDGET["2026-12"]).toEqual({
+      omsExVat: 867765,
+      dbExVat: 463596,
+      marketingExVat: 158709,
+    });
   });
 });

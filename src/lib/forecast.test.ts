@@ -10,9 +10,9 @@ describe("blendForecastProjection", () => {
     });
 
     expect(forecast.mtd).toBe(220_000);
-    expect(forecast.mid).toBe(685_000);
-    expect(forecast.lo).toBe(650_000);
-    expect(forecast.hi).toBe(720_000);
+    expect(forecast.mid).toBeCloseTo(731653.23, 2);
+    expect(forecast.lo).toBeCloseTo(671532.26, 2);
+    expect(forecast.hi).toBeCloseTo(791774.19, 2);
     expect(forecast.growthMid).toBe(1.45);
   });
 
@@ -33,7 +33,7 @@ describe("blendForecastProjection", () => {
       hi: 2,
     });
 
-    expect(forecast.lo).toBe(160);
-    expect(forecast.hi).toBe(170);
+    expect(forecast.lo).toBe(140);
+    expect(forecast.hi).toBe(155);
   });
 });

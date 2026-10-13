@@ -78,7 +78,7 @@ function Variance({ v, b }: { v: number; b: number }) {
   return <span className={`bvar ${p >= 0 ? "pos" : "neg"}`}>{`${p >= 0 ? "+" : ""}${p.toFixed(1)} %`}</span>;
 }
 
-function SolidRow({ label, actual, budget, basis }: { label: string; actual: number; budget: number; basis: string }) {
+function SolidRow({ label, actual, budget, basis, lastYear }: { label: string; actual: number; budget: number; basis: string; lastYear?: number }) {
   return (
     <div className="brow">
       <div className="blabel">{label}<div className="tag" style={{ marginTop: 3 }}>{basis}</div></div>
@@ -86,12 +86,15 @@ function SolidRow({ label, actual, budget, basis }: { label: string; actual: num
         <div className={`fill ${paceClass(actual / budget)}`} style={{ width: `${barX(actual, budget).toFixed(1)}%` }} />
         <div className="marker" style={{ left: `${budgetMarker.toFixed(1)}%` }} />
       </div>
-      <div className="bvals"><span className="big">{formatMoney(actual)}</span> <span className="muted">/ {formatMoney(budget)}</span> · <Variance v={actual} b={budget} /></div>
+      <div className="bvals">
+        <span className="big">{formatMoney(actual)}</span> <span className="muted">/ {formatMoney(budget)}</span> · <Variance v={actual} b={budget} />
+        {lastYear !== undefined && <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>LY {formatMoney(lastYear)}</div>}
+      </div>
     </div>
   );
 }
 
-function RangeRow({ label, mid, lo, hi, budget, basis }: { label: string; mid: number; lo: number; hi: number; budget: number; basis: string }) {
+function RangeRow({ label, mid, lo, hi, budget, basis, lastYear }: { label: string; mid: number; lo: number; hi: number; budget: number; basis: string; lastYear?: number }) {
   const l = barX(lo, budget), h = barX(hi, budget), m = barX(mid, budget);
   return (
     <div className="brow">
@@ -103,20 +106,20 @@ function RangeRow({ label, mid, lo, hi, budget, basis }: { label: string; mid: n
       </div>
       <div className="bvals">
         <span className="big">{formatMoney(mid)}</span> <span className="muted">/ {formatMoney(budget)}</span> · <Variance v={mid} b={budget} />
-        <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>interval {formatMoney(lo)}–{formatMoney(hi)}</div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>interval {formatMoney(lo)}–{formatMoney(hi)}{lastYear !== undefined ? ` · LY ${formatMoney(lastYear)}` : ""}</div>
       </div>
     </div>
   );
 }
 
-function ForecastOnlyRow({ label, mid, lo, hi, basis }: { label: string; mid: number; lo: number; hi: number; basis: string }) {
+function ForecastOnlyRow({ label, mid, lo, hi, basis, lastYear }: { label: string; mid: number; lo: number; hi: number; basis: string; lastYear?: number }) {
   return (
     <div className="brow">
       <div className="blabel">{label}<div className="tag" style={{ marginTop: 3 }}>{basis}</div></div>
       <div />
       <div className="bvals">
         <span className="big">{formatMoney(mid)}</span>
-        <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>interval {formatMoney(lo)}–{formatMoney(hi)}</div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 1 }}>interval {formatMoney(lo)}–{formatMoney(hi)}{lastYear !== undefined ? ` · LY ${formatMoney(lastYear)}` : ""}</div>
       </div>
     </div>
   );
@@ -185,6 +188,7 @@ export function Dashboard({
   const latestYear = fullYears[fullYears.length - 1];
   const kpiCur = latestYear ? findRow(rows, latestYear, month, "full") : undefined;
   const kpiPrev = latestYear ? findRow(rows, latestYear - 1, month, "full") : undefined;
+  const lySameMonth = findRow(rows, curYear - 1, month, "full");
 
   const fullsSorted = useMemo(
     () => rows.filter((r) => r.split === "full").sort((a, b) => a.year - b.year || a.month - b.month),
@@ -266,20 +270,12 @@ export function Dashboard({
             <>
               <div className="kpis">
                 {KPI_KEYS.map((key) => {
-                  const prevVal = kpiPrev?.metrics[key];
-                  const delta = yoyDelta(key, kpiCur.metrics[key], prevVal);
+                  const delta = yoyDelta(key, kpiCur.metrics[key], kpiPrev?.metrics[key]);
                   const cls = delta ? (delta.startsWith("+") ? "up" : "down") : "flat";
-                  const prevYearValue = prevVal !== undefined ? fmtMetric(key, prevVal) : "–";
                   return (
                     <div key={key} className="kpi">
                       <div className="lbl">{METRIC_LABELS[key]}</div>
-                      <div className="kpi-top">
-                        <div className="val">{fmtMetric(key, kpiCur.metrics[key])}</div>
-                        <div className="kpi-lastyear">
-                          <span className="kpi-lastyear-label">LY</span>
-                          <span className="kpi-lastyear-value">{prevYearValue}</span>
-                        </div>
-                      </div>
+                      <div className="val">{fmtMetric(key, kpiCur.metrics[key])}</div>
                       <Sparkline series={sparkSeries(key)} />
                       <div className="foot">
                         {delta ? <span className={`delta ${cls}`}>{cls === "up" ? "▲" : "▼"} {delta}</span> : <span className="delta flat">–</span>}
@@ -309,24 +305,24 @@ export function Dashboard({
                         <div className="budget-head"><h3>{bt ? "Budget · prognose" : "Prognose"} <small>{monthName(month)} {budgetYear}</small></h3><span className={`status ${bt ? (on ? "on" : "off") : "pending"}`}>{bt ? (on ? "Prognose over budget" : "Prognose under budget") : "Budget ikke fastsat"}</span></div>
                         {bt ? (
                           <>
-                            <RangeRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} budget={bt.omsExVat * VAT} basis="inkl. moms" />
-                            <RangeRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} budget={bt.dbExVat} basis="ekskl. moms" />
+                            <RangeRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} budget={bt.omsExVat * VAT} basis="inkl. moms" lastYear={lySameMonth?.metrics.revenueInclVat} />
+                            <RangeRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} budget={bt.dbExVat} basis="ekskl. moms" lastYear={lySameMonth?.metrics.db} />
                             {forecast.spend && (
-                              <ForecastOnlyRow label="Spend" mid={forecast.spend.mid} lo={forecast.spend.lo} hi={forecast.spend.hi} basis="ekskl. moms" />
+                              <ForecastOnlyRow label="Spend" mid={forecast.spend.mid} lo={forecast.spend.lo} hi={forecast.spend.hi} basis="ekskl. moms" lastYear={lySameMonth?.metrics.spend} />
                             )}
                             {forecast.contributionMargin && (
-                              <RangeRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
+                              <RangeRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" lastYear={lySameMonth?.metrics.contributionMargin} />
                             )}
                           </>
                         ) : (
                           <>
-                            <ForecastOnlyRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} basis="inkl. moms" />
-                            <ForecastOnlyRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} basis="ekskl. moms" />
+                            <ForecastOnlyRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} basis="inkl. moms" lastYear={lySameMonth?.metrics.revenueInclVat} />
+                            <ForecastOnlyRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} basis="ekskl. moms" lastYear={lySameMonth?.metrics.db} />
                             {forecast.spend && (
-                              <ForecastOnlyRow label="Spend" mid={forecast.spend.mid} lo={forecast.spend.lo} hi={forecast.spend.hi} basis="ekskl. moms" />
+                              <ForecastOnlyRow label="Spend" mid={forecast.spend.mid} lo={forecast.spend.lo} hi={forecast.spend.hi} basis="ekskl. moms" lastYear={lySameMonth?.metrics.spend} />
                             )}
                             {forecast.contributionMargin && (
-                              <ForecastOnlyRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} basis="ekskl. moms" />
+                              <ForecastOnlyRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} basis="ekskl. moms" lastYear={lySameMonth?.metrics.contributionMargin} />
                             )}
                           </>
                         )}
@@ -344,9 +340,9 @@ export function Dashboard({
                   return (
                     <>
                       <div className="budget-head"><h3>Budget · faktisk <small>{monthName(month)} {budgetYear}</small></h3><span className={`status ${on ? "on" : "off"}`}>{on ? "På / over budget" : "Under budget"}</span></div>
-                      <SolidRow label="Omsætning" actual={budgetRow.metrics.revenueInclVat} budget={budOms} basis="inkl. moms" />
-                      <SolidRow label="DB" actual={budgetRow.metrics.db} budget={bt.dbExVat} basis="ekskl. moms" />
-                      <SolidRow label="Contribution" actual={budgetRow.metrics.contributionMargin} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
+                      <SolidRow label="Omsætning" actual={budgetRow.metrics.revenueInclVat} budget={budOms} basis="inkl. moms" lastYear={lySameMonth?.metrics.revenueInclVat} />
+                      <SolidRow label="DB" actual={budgetRow.metrics.db} budget={bt.dbExVat} basis="ekskl. moms" lastYear={lySameMonth?.metrics.db} />
+                      <SolidRow label="Contribution" actual={budgetRow.metrics.contributionMargin} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" lastYear={lySameMonth?.metrics.contributionMargin} />
                       <p className="vatlegend" style={{ marginTop: 8 }}>Contribution = DB − annoncespend (Google+Meta); budget-CM trækker hele marketingbudgettet fra.</p>
                     </>
                   );
