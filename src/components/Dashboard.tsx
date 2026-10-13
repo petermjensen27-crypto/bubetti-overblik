@@ -303,6 +303,9 @@ export function Dashboard({
                           <>
                             <RangeRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} budget={bt.omsExVat * VAT} basis="inkl. moms" />
                             <RangeRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} budget={bt.dbExVat} basis="ekskl. moms" />
+                            {forecast.spend && (
+                              <ForecastOnlyRow label="Spend" mid={forecast.spend.mid} lo={forecast.spend.lo} hi={forecast.spend.hi} basis="ekskl. moms" />
+                            )}
                             {forecast.contributionMargin && (
                               <RangeRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} budget={bt.dbExVat - bt.marketingExVat} basis="ekskl. moms" />
                             )}
@@ -311,6 +314,9 @@ export function Dashboard({
                           <>
                             <ForecastOnlyRow label="Omsætning" mid={omsMid} lo={omsLo} hi={omsHi} basis="inkl. moms" />
                             <ForecastOnlyRow label="DB" mid={forecast.grossProfit.mid} lo={forecast.grossProfit.lo} hi={forecast.grossProfit.hi} basis="ekskl. moms" />
+                            {forecast.spend && (
+                              <ForecastOnlyRow label="Spend" mid={forecast.spend.mid} lo={forecast.spend.lo} hi={forecast.spend.hi} basis="ekskl. moms" />
+                            )}
                             {forecast.contributionMargin && (
                               <ForecastOnlyRow label="Contribution" mid={forecast.contributionMargin.mid} lo={forecast.contributionMargin.lo} hi={forecast.contributionMargin.hi} basis="ekskl. moms" />
                             )}

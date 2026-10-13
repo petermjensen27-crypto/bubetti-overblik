@@ -25,4 +25,15 @@ describe("blendForecastProjection", () => {
 
     expect(forecast.mid).toBe(220_000);
   });
+
+  it("keeps the interval ordered when historical remainder is negative", () => {
+    const forecast = blendForecastProjection(100, 10, 20, -50, {
+      mid: 1.5,
+      lo: 1,
+      hi: 2,
+    });
+
+    expect(forecast.lo).toBe(140);
+    expect(forecast.hi).toBe(155);
+  });
 });

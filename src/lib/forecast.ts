@@ -66,12 +66,14 @@ export function blendForecastProjection(
   const historicalWeight = daysRemaining > 0 ? HISTORY_WEIGHT : 0;
   const project = (growthFactor: number) =>
     mtd + paceRemaining * PACE_WEIGHT + historicalRemaining * growthFactor * historicalWeight;
+  const lowerBound = project(growth.lo);
+  const upperBound = project(growth.hi);
 
   return {
     mtd,
     mid: project(growth.mid),
-    lo: project(growth.lo),
-    hi: project(growth.hi),
+    lo: Math.min(lowerBound, upperBound),
+    hi: Math.max(lowerBound, upperBound),
     growthMid: growth.mid,
   };
 }
