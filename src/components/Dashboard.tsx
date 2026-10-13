@@ -266,12 +266,20 @@ export function Dashboard({
             <>
               <div className="kpis">
                 {KPI_KEYS.map((key) => {
-                  const delta = yoyDelta(key, kpiCur.metrics[key], kpiPrev?.metrics[key]);
+                  const prevVal = kpiPrev?.metrics[key];
+                  const delta = yoyDelta(key, kpiCur.metrics[key], prevVal);
                   const cls = delta ? (delta.startsWith("+") ? "up" : "down") : "flat";
+                  const prevYearValue = prevVal !== undefined ? fmtMetric(key, prevVal) : "–";
                   return (
                     <div key={key} className="kpi">
                       <div className="lbl">{METRIC_LABELS[key]}</div>
-                      <div className="val">{fmtMetric(key, kpiCur.metrics[key])}</div>
+                      <div className="kpi-top">
+                        <div className="val">{fmtMetric(key, kpiCur.metrics[key])}</div>
+                        <div className="kpi-lastyear">
+                          <span className="kpi-lastyear-label">LY</span>
+                          <span className="kpi-lastyear-value">{prevYearValue}</span>
+                        </div>
+                      </div>
                       <Sparkline series={sparkSeries(key)} />
                       <div className="foot">
                         {delta ? <span className={`delta ${cls}`}>{cls === "up" ? "▲" : "▼"} {delta}</span> : <span className="delta flat">–</span>}
